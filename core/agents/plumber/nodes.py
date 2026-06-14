@@ -49,7 +49,8 @@ def generate(state: AgentState, *, model: str, max_output_tokens: int,
     )
     proxy = SafeAIProxy(provider)
 
-    messages = build_messages(_system_prompt(skills_text), state["user_input"])
+    messages = build_messages(_system_prompt(skills_text), state["user_input"],
+                              state.get("history"))
     used = state.get("usage", {}).get("input_tokens", 0) + \
         state.get("usage", {}).get("output_tokens", 0)
 

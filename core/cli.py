@@ -28,12 +28,47 @@ def _print_event(ev: dict) -> None:
         status = "ok" if ev["ok"] else f"ERROR: {ev['error']}"
         print(f"  ✔ {ev['node']}  ({ev['duration_ms']} ms)  [{status}]", flush=True)
 
+def chat_loop(agent_name: str, mock: bool | None) -> int:
+    """Multi-turn conversation loop. History is held here and passed into each turn,
+    so the agent can ask clarifying questions and then answer based on the replies."""
+    agent = get_agent(agent_name, mock=mock)
+    history: list[dict] = []
+    print(f"=== chat with agent: {agent.name} ===")
+    print("מצב שיחה. הקלידי 'יציאה' (או exit / Ctrl+C) לסיום.\n")
+
+    while True:
+        try:
+            user = input("את/ה> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not user:
+            continue
+        if user in {"יציאה", "exit", "quit", "q"}:
+            break
+
+        final = run_agent(agent, user, history=history)
+        answer = final.get("final_answer", "(no answer)")
+        print(f"\אייג'נט> {answer}\n")
+
+        if final.get("blocked"):
+            print(f"[blocked] {final.get('block_reason')}\n")
+            continue
+
+        # accumulate the turn so the next turn has full context
+        history.append({"role": "user", "content": user})
+        history.append({"role": "assistant", "content": answer})
+
+    print("סיום שיחה.")
+    return 0
+
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Run an AI agent.")
     p.add_argument("question", nargs="?", help="the user input")
     p.add_argument("--agent", default="plumber")
     p.add_argument("--mock", action="store_true", help="force mock provider (no API key)")
+    p.add_argument("--chat", action="store_true", help="interactive multi-turn chat loop")
     p.add_argument("--list", action="store_true", help="list available agents")
     args = p.parse_args(argv)
 
@@ -41,12 +76,17 @@ def main(argv: list[str] | None = None) -> int:
         print("Available agents:", ", ".join(list_agents()))
         return 0
 
-    if not args.question:
-        p.error("a question is required (or use --list)")
-
     mock = True if args.mock else None
     if mock is None and not get_secret("OPENROUTER_API_KEY"):
         print("ℹ️  OPENROUTER_API_KEY not set — running in MOCK mode.\n")
+
+    if args.chat:
+        return chat_loop(args.agent, mock)
+
+    if not args.question:
+        p.error("a question is required (or use --chat / --list)")
+
+    agent = get_agent(args.agent, mock=mock)
 
     agent = get_agent(args.agent, mock=mock)
 

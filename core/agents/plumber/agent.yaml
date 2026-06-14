@@ -5,7 +5,7 @@ name: plumber
 display_name: "יועץ אינסטלציה"
 description: "עונה על שאלות אינסטלציה ביתיות בעברית, עם דגש על בטיחות."
 
-model: "google/gemini-2.5-flash:free"            # any OpenRouter tool-capable model
+model: "google/gemma-4-31b-it:free"            # any OpenRouter tool-capable model
 
 
 max_output_tokens: 800

@@ -17,6 +17,7 @@ class AgentState(TypedDict, total=False):
 
     # --- working fields ---
     messages: list[dict]       # chat history sent to the provider
+    history: list[dict]        # prior conversation turns (role/content) for multi-turn
     draft_answer: str          # provider output before output-guardrails
     final_answer: str          # what the user sees
 

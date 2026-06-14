@@ -50,19 +50,27 @@ class OpenRouterProvider:
             return self._mock_complete(messages)
         return self._real_complete(messages, used_tokens=used_tokens)
 
-    # --- mock -------------------------------------------------------------
+# --- mock -------------------------------------------------------------
     def _mock_complete(self, messages: list[dict]) -> Completion:
-        user = next((m["content"] for m in reversed(messages)
-                     if m["role"] == "user"), "")
-        text = (
-            "‎[MOCK] תשובת אינסטלטור לדוגמה.\n"
-            f"קיבלתי את השאלה: «{user[:120]}».\n"
-            "במצב אמיתי כאן תופיע תשובה שנוצרה על ידי המודל דרך OpenRouter. "
-            "הגדירי OPENROUTER_API_KEY כדי לקבל תשובות אמיתיות."
-        )
-        return Completion(text=text, input_tokens=len(user) // 4 + 20,
+        user_turns = [m for m in messages if m["role"] == "user"]
+        last_user = user_turns[-1]["content"] if user_turns else ""
+        if len(user_turns) <= 1:
+            # first turn: simulate the skill's "ask clarifying questions" behavior
+            text = (
+                "‎[MOCK] כדי לאבחן מדויק, כמה שאלות:\n"
+                "1. היכן בדיוק רואים מים — על הברז, בחיבור הגמיש, או בסיפון?\n"
+                "2. סוג הברז (פרח / שתי ידיות / קיר)?\n"
+                "3. שנת בניית הבית בקירוב?\n"
+                "(זו תשובת mock — הגדירי OPENROUTER_API_KEY לתשובות אמיתיות.)"
+            )
+        else:
+            text = (
+                "‎[MOCK] תודה על הפרטים. בהתבסס על מה שתיארת, הצעד הבא הוא לסגור את "
+                "ברזי הניתוק, לייבש, ולאתר את נקודת הנזילה עם נייר יבש. "
+                f"(התייחסות אחרונה: «{last_user[:80]}».)"
+            )
+        return Completion(text=text, input_tokens=len(last_user) // 4 + 20,
                           output_tokens=len(text) // 4)
-
     # --- real -------------------------------------------------------------
     def _real_complete(self, messages: list[dict], *, used_tokens: int) -> Completion:
         payload = {

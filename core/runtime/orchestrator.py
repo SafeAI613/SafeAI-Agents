@@ -32,6 +32,7 @@ def traced(node_name: str, fn: Callable[[AgentState], dict], tracer: Tracer):
 
 
 def run_agent(agent, user_input: str, *,
+              history: list[dict] | None = None,
               on_event: Callable[[dict], None] | None = None) -> dict[str, Any]:
     """Run an agent end-to-end.
 
@@ -49,6 +50,7 @@ def run_agent(agent, user_input: str, *,
         "user_input": user_input,
         "agent_name": agent.name,
         "messages": [],
+        "history": history or [],
         "usage": {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0},
         "blocked": False,
     }
