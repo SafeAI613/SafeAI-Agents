@@ -5,12 +5,18 @@ name: plumber
 display_name: "יועץ אינסטלציה"
 description: "עונה על שאלות אינסטלציה ביתיות בעברית, עם דגש על בטיחות."
 
-model: "anthropic/claude-3.5-sonnet"   # any OpenRouter tool-capable model
+model: "google/gemini-2.5-flash:free"            # any OpenRouter tool-capable model
+
+
 max_output_tokens: 800
 budget_tokens: 4000                     # hard cap per run (enforced in provider)
 
 # Tools this agent may use. The plumber is pure Q&A — no tools.
 tools: []
+
+# Skills (SKILL.md domain knowledge) injected into the system prompt.
+skills:
+  - israeli-plumbing
 
 # Human-in-the-loop gates (none for this simple agent).
 gates: []

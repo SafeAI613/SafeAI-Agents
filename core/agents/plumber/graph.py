@@ -20,8 +20,10 @@ from core.agents.plumber import nodes
 from core.runtime.events import Tracer
 from core.runtime.orchestrator import traced
 from core.runtime.state import AgentState
+from core.tools.skills import load_skills
 
 _CFG = yaml.safe_load((Path(__file__).parent / "agent.yaml").read_text(encoding="utf-8"))
+_SKILLS_TEXT = load_skills(Path(__file__).parent, _CFG.get("skills", []))
 
 
 def _route_after_input(state: AgentState) -> str:
@@ -42,6 +44,7 @@ class PlumberAgent:
             max_output_tokens=_CFG["max_output_tokens"],
             budget_tokens=_CFG["budget_tokens"],
             mock=self.mock,
+            skills_text=_SKILLS_TEXT,
         )
 
         g = StateGraph(AgentState)

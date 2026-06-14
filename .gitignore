@@ -1,0 +1,9 @@
+.env
+
+.mess
+
+.venv
+__pycache__
+
+ai_agents_desktop.egg-info
+

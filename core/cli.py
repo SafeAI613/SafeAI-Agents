@@ -17,7 +17,10 @@ from core.agents.registry import get_agent, list_agents
 from core.runtime.orchestrator import run_agent
 from core.security.secrets import get_secret
 
+from dotenv import load_dotenv
+load_dotenv()
 
+    
 def _print_event(ev: dict) -> None:
     if ev["type"] == "node_start":
         print(f"  ▶ {ev['node']} ...", flush=True)

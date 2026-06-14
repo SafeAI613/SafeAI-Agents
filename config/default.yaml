@@ -3,7 +3,7 @@
 provider:
   name: openrouter
   # default model if an agent.yaml omits one
-  default_model: "anthropic/claude-3.5-sonnet"
+  default_model: "google/gemini-2.5-flash:free"
 
 # Per-agent budgets are set in each agent.yaml; this is a global ceiling.
 budgets:

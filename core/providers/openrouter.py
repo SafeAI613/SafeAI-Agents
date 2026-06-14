@@ -74,6 +74,7 @@ class OpenRouterProvider:
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
+        
         with httpx.Client(timeout=60) as client:
             resp = client.post(OPENROUTER_URL, json=payload, headers=headers)
             resp.raise_for_status()

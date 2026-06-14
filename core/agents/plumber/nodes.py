@@ -13,12 +13,17 @@ from core.providers.openrouter import BudgetExceeded, OpenRouterProvider
 from core.runtime.state import AgentState
 
 SYSTEM_PROMPT = (
-    "אתה יועץ אינסטלציה מנוסה. ענה בעברית, בצורה ברורה ומעשית, על שאלות "
-    "אינסטלציה ביתיות (נזילות, סתימות, לחץ מים, ברזים, דודים וכו'). "
-    "תן צעדים פרקטיים שאדם יכול לבצע בעצמו בבטחה. "
-    "כשמדובר בגז, בחשמל, בעבודה מורכבת או במצב מסוכן — המלץ במפורש לפנות "
-    "לבעל מקצוע מוסמך. אל תמציא מידע; אם אינך בטוח, אמור זאת."
+    "אתה יועץ אינסטלציה מנוסה לבתים בישראל. ענה בעברית תקנית, ברורה ומעשית. "
+    "אם חסרים פרטים על מקור הנזילה, סוג הברז, או הצנרת — פתח בשאלות הבהרה ממוקדות "
+    "ורק אז תן הנחיות מותנות. כשמדובר בגז/חשמל/עבודה מורכבת — המלץ לפנות לבעל מקצוע. "
+    "אל תמציא מידע ואל תשתמש במונחים שאינם קיימים; אם אינך בטוח, אמור זאת."
 )
+
+
+def _system_prompt(skills_text: str) -> str:
+    if skills_text:
+        return SYSTEM_PROMPT + "\n\n" + skills_text
+    return SYSTEM_PROMPT
 
 
 def guard_input(state: AgentState) -> dict:
@@ -34,7 +39,7 @@ def guard_input(state: AgentState) -> dict:
 
 
 def generate(state: AgentState, *, model: str, max_output_tokens: int,
-             budget_tokens: int, mock: bool | None) -> dict:
+             budget_tokens: int, mock: bool | None, skills_text: str = "") -> dict:
     """Call the model through the SafeAI guardrails proxy and produce the answer."""
     provider = OpenRouterProvider(
         model=model,
@@ -44,7 +49,7 @@ def generate(state: AgentState, *, model: str, max_output_tokens: int,
     )
     proxy = SafeAIProxy(provider)
 
-    messages = build_messages(SYSTEM_PROMPT, state["user_input"])
+    messages = build_messages(_system_prompt(skills_text), state["user_input"])
     used = state.get("usage", {}).get("input_tokens", 0) + \
         state.get("usage", {}).get("output_tokens", 0)
 
