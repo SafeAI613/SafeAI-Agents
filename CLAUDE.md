@@ -1,236 +1,127 @@
 # CLAUDE.md
 
-> Founding document for an agent working in this repository.
-> **This is a greenfield project.** The repo does not exist yet — this file defines the
-> target architecture you are building toward. Treat the structure and conventions below
-> as the spec. Scaffold incrementally; do not generate the whole tree at once.
+> מסמך הכוונה לאג'נט שעובד ב-repo הזה. משקף את **המצב הנוכחי בפועל** (לא תכנון-יעד).
+> מסומן [ממומש] / [stub] כדי שתדע מה עובד ומה שמור לעתיד.
 
 ---
 
-## 1. What this project is
+## 1. מה זה הפרויקט
 
-A **desktop application for running AI agents**. Each agent is implemented as an explicit
-**workflow** (a LangGraph state graph) with full control over every step. Agents have access
-to the full Anthropic-recommended tool surface — **MCP, RAG, Skills, code execution, and
-browser automation** — and every agent is validated by **evals** and wrapped in
-**guardrails**.
+מערכת סוכני AI כתוכנת desktop. כל אג'נט הוא **workflow מפורש** (LangGraph) עם שליטה על כל
+שלב, עובר דרך **guardrails**, ומשתמש בכלים בסגנון Anthropic. ספק המודל: **OpenRouter**.
 
-The model provider is **OpenRouter** (unified completions + tool calling).
+ארכיטקטורה: ליבת **Python** (FastAPI sidecar) שאליה יתחבר UI (Tauri) בעתיד. כרגע מריצים
+דרך ה-CLI; השרת קיים כ-seam ל-UI. כל תעבורת המודל עוברת דרך guardrails לפני/אחרי.
 
-The application is a two-process desktop app:
-- a **Tauri** shell (Rust) hosting a **React + RTL** UI, and
-- a **Python core** running as a local **FastAPI sidecar** that owns all agent logic.
+## 2. מצב נוכחי — מה ממומש
 
-The UI talks to the core over local HTTP/WebSocket. The UI never calls the model provider
-directly — all model traffic flows through the Python core.
+- שני אג'נטים עובדים על אותו שלד:
+  - `plumber` [ממומש] — Q&A, יועץ אינסטלציה ישראלי, כלי: Skill בלבד.
+  - `device_guide` [ממומש] — RAG מעל קורפוס מקומי (md/txt/pdf), כלים: RAG + Skill.
+- תשתית [ממומש]: orchestrator גנרי, tracing per-node, state משותף, לולאת שיחה רב-תורית,
+  budget cap, guardrails (policies מקומיים + hook ל-SafeAI), eval harness (כולל רב-תורי).
+- כלים: `skills/` [ממומש], `rag/` [ממומש]. `mcp/`, `code_exec/`, `browser/` [stub].
+- UI (Tauri/React) [לא ממומש] — השרת מוכן כ-seam.
 
----
+## 3. החלטות ארכיטקטורה (מחייבות)
 
-## 2. Architecture & key decisions
+| נושא | הכרעה |
+|------|--------|
+| שפת ליבה | Python |
+| orchestration | LangGraph (StateGraph, MemorySaver, conditional edges) |
+| ספק | OpenRouter — נותן completions + tool calling בלבד; כל השאר ממומש כאן |
+| **כלים** | **טולס מקומיים (פונקציות פייתון) כברירת מחדל. MCP רק בקצוות:** (א) צריכת שרת MCP קיים, (ב) בידוד יכולת מסוכנת, (ג) חשיפת יכולת לשימוש חוזר חוצה-קליינטים (כמו SafeAI) |
+| RAG | אחזור לקסיקלי (BM25, פייתון טהור). embeddings סמנטיים = שדרוג עתידי, מחליפים רק את `LexicalIndex` |
+| guardrails | כל I/O עובר דרך `SafeAIProxy`; policies מקומיים תמיד, SafeAI אופציונלי דרך config |
+| מודל | מוגדר ב-`agent.yaml`. לעברית איכותית עדיף `anthropic/claude-sonnet-4.5` על פני `openrouter/free` |
 
-| Concern | Decision | Rationale |
-|---|---|---|
-| Core language | **Python** | LangGraph, RAG, code-exec, browser tooling are most mature here |
-| Orchestration | **LangGraph** (state graph, checkpointer, `interrupt()`/`Command`) | Per-step control, resumability, human-in-the-loop |
-| UI shell | **Tauri** (Rust) + React/RTL | Lightweight desktop shell; UI is Hebrew/RTL |
-| UI ↔ core transport | Local **HTTP + WebSocket** (WS streams graph events) | Decoupled, streamable step inspector |
-| Provider | **OpenRouter** | Single client; provider gives completions + tool calling only |
-| Tools | Exposed as **MCP servers** wherever possible | One uniform integration + permission model |
-| Browser automation | **DOM / accessibility-tree driven**, via **Playwright MCP** | Cheap, deterministic, no vision model required |
-| Code execution | **Docker sandbox** | Isolation is the security boundary |
-| Guardrails | **SafeAI** gateway as an I/O proxy + local policies | Reuse the existing SafeAI moderation platform |
-| Evals | Per-agent suites, CI-runnable regression | Every agent gated by evals before merge |
+עיקרון מנחה: **OpenRouter נותן רק טקסט. RAG/Skills/כלים — ממומשים כאן.** ועיקרון מורכבות:
+לא מוסיפים שכבה (MCP, embeddings, browser) עד שיש אג'נט שבאמת זקוק לה.
 
-**Critical mental model:** OpenRouter only provides completions + tool calling.
-RAG, Skills, code execution, and browser control are **implemented client-side as tools/
-orchestration in `core/`** — they are NOT provider features. Do not assume the provider
-"gives" any of these.
-
-**Browser automation is not a special category** — it is just another MCP server
-(Playwright MCP). Route it through the same MCP client and permission broker as every other
-tool. Default to DOM/accessibility-tree driven control; only fall back to screenshots if the
-DOM is genuinely insufficient.
-
----
-
-## 3. Repository structure
+## 4. מבנה ה-repo (בפועל)
 
 ```
-ai-agents-desktop/
-├─ apps/
-│  └─ desktop/                  # Tauri shell + React/RTL UI
-│     ├─ src-tauri/             # window, IPC, Python sidecar lifecycle
-│     └─ src/                   # agent runs, step inspector, approval gates
-│
-├─ core/                        # Python core (FastAPI sidecar) — owns all agent logic
-│  ├─ server/                   # HTTP/WS API; streams graph events to the UI
-│  ├─ agents/
-│  │  ├─ registry.py            # loads agents from config
-│  │  └─ <agent_name>/
-│  │     ├─ graph.py            # the LangGraph workflow
-│  │     ├─ nodes.py            # individual steps
-│  │     └─ agent.yaml          # model, tools, guardrails, gates, budget
-│  ├─ runtime/
-│  │  ├─ orchestrator.py        # run loop, checkpointer, interrupt/resume
-│  │  ├─ state.py               # state schema + persistence
-│  │  └─ events.py              # per-node tracing + timing
-│  ├─ tools/
-│  │  ├─ mcp/
-│  │  │  ├─ client.py           # MCP client (stdio + streamable-http)
-│  │  │  └─ servers.yaml        # registered servers: playwright, safeai, code-exec…
-│  │  ├─ code_exec/             # Docker sandbox runner
-│  │  ├─ rag/                   # ingestion, chunking, retrieval
-│  │  └─ skills/                # Skills loader (SKILL.md discovery)
-│  ├─ guardrails/
-│  │  ├─ safeai_proxy.py        # all model I/O routed through SafeAI gateway
-│  │  └─ policies.py            # local input/output policies
-│  ├─ memory/
-│  │  ├─ short_term.py          # conversation window
-│  │  └─ long_term.py           # semantic memory (vector store)
-│  ├─ providers/
-│  │  └─ openrouter.py          # client, usage tracking, budget caps
-│  ├─ security/
-│  │  ├─ permissions.py         # permission broker (incl. domain allowlist)
-│  │  └─ secrets.py             # key management
-│  └─ observability/
-│     └─ tracing.py             # LangSmith / OpenTelemetry exporter
-│
-├─ evals/
-│  ├─ datasets/                 # inputs + expected outputs
-│  ├─ suites/                   # per-agent eval suites
-│  └─ runner.py                 # CI-friendly regression runner
-│
-├─ packages/
-│  └─ shared-schemas/           # event/state schemas shared by UI ↔ core
-│
-├─ infra/
-│  ├─ sandbox/                  # Dockerfile for code-exec sandbox
-│  └─ mcp-servers/
-│     ├─ playwright/            # Playwright MCP (browser automation)
-│     ├─ safeai/                # MCP wrapper around the SafeAI API
-│     └─ …                      # additional local MCP servers
-│
-├─ config/
-│  └─ default.yaml              # keys, budgets, domain allowlist, paths
-└─ tests/
+core/
+  __init__.py            תיקון TLS לנטפרי (truststore) — רץ בכל ייבוא
+  cli.py                 הרצה: שאלה בודדת + --chat (רב-תורי) + --list
+  server/app.py          FastAPI: /agents, /run, /ws/run
+  agents/
+    registry.py          רישום אג'נטים — נקודת ההוספה
+    plumber/             graph.py + nodes.py + agent.yaml + skills/israeli-plumbing/
+    device_guide/        + corpus/ (md/txt/pdf) + skills/device-manuals/
+  runtime/
+    orchestrator.py      run_agent + traced() — מנוע גנרי, אג'נט-אגנוסטי
+    state.py             AgentState (user_input, history, retrieved, sources, usage, trace...)
+    events.py            Tracer (per-node timing)
+  tools/
+    skills/   [ממומש]    load_skills — מזריק SKILL.md ל-prompt
+    rag/      [ממומש]    store.py: chunk_text, load_corpus(md/txt/pdf), extract_pdf_text, LexicalIndex(BM25)
+    mcp/ code_exec/ browser/   [stub]
+  guardrails/
+    safeai_proxy.py      כל I/O למודל עובר כאן (+ hook ל-SafeAI gateway)
+    policies.py          בדיקות מקומיות
+  memory/short_term.py   build_messages עם היסטוריה רב-תורית
+  providers/openrouter.py client + budget cap (+ mock fallback ללא מפתח)
+  security/              permissions (broker + allowlist) + secrets
+  observability/tracing.py  [stub] seam ל-LangSmith/OTel
+evals/                   runner (תומך turns רב-תוריים) + suites/ + datasets/
+config/default.yaml      provider, budgets, SafeAI toggle, allowlist
+docs/FILE_GUIDE.md       מפת קבצים מפורטת
 ```
 
----
+## 5. מודל מנטלי
 
-## 4. Core concepts
+- **אג'נט = `graph.py` + `agent.yaml`** (+ אופציונלית `skills/`, `corpus/`). אין לוגיקת אג'נט ב-runtime.
+- **`agent.yaml` דקלרטיבי**: model, max_output_tokens, budget_tokens, tools, skills, guardrails.
+- **כל node מחזיר עדכון state חלקי.** כל I/O למודל דרך `SafeAIProxy`, לעולם לא ישירות ל-provider.
+- **Skills ו-RAG דומים**: שניהם מזריקים טקסט ל-context. ההבדל: Skill סטטי וידוע מראש; RAG מאחזר דינמית מקורפוס.
+- **טולס מקומיים** מספיקים לרוב; MCP רק כשצריך interop/בידוד/שימוש חוזר.
 
-**An agent = `graph.py` + `agent.yaml`.** Nothing more.
-- `graph.py` defines the LangGraph workflow (nodes, edges, conditional routing).
-- `agent.yaml` is declarative config: which model, which tools, which guardrails, which
-  human gates, and the budget cap. Adding an agent must NOT require touching the runtime.
+## 6. דפוסי הגרפים הקיימים
 
-**`core/runtime` is a generic engine.** It runs any graph, applies the checkpointer, emits
-per-node tracing/timing events, and handles `interrupt()`/resume. Keep it agent-agnostic.
+- plumber: `START → guard_input → (blocked? END : generate) → END`
+- device_guide: `START → guard_input → (blocked? END : retrieve) → answer → END`
 
-**All tools go through MCP + the permission broker.** A node never calls a browser/file/
-network capability directly — it requests it through the MCP client, and the permission
-broker (`security/permissions.py`) authorizes it against policy (e.g. domain allowlist).
+## 7. כללי עבודה
 
-**All model I/O goes through SafeAI.** `providers/openrouter.py` is wrapped by
-`guardrails/safeai_proxy.py`. No node calls OpenRouter without passing input/output through
-the guardrails layer.
+- async/Python מודרני, type hints, Pydantic לסכמות.
+- כל node פולט אירוע start/end עם timing (מזין inspector + WS).
+- UI עתידי: React, RTL (עברית).
+- config over code: budgets/models/allowlists ב-YAML, לא בקוד.
+- secrets מ-env בלבד (`security/secrets.py`); לעולם לא בקוד.
+- כל תעבורת מודל דרך guardrails. אין לעקוף.
+- TLS: `core/__init__.py` מטפל בנטפרי דרך truststore. דורש `pip install truststore`.
 
-**Memory ≠ RAG.** RAG (`tools/rag/`) is retrieval over external knowledge. Memory
-(`memory/`) is the agent's own short-term (conversation) and long-term (semantic) state.
+## 8. הוספת אג'נט חדש
 
----
+1. `core/agents/<name>/` עם graph.py, nodes.py, agent.yaml.
+2. הוסף שדות ל-`runtime/state.py` אם צריך.
+3. רשום factory ב-`core/agents/registry.py`.
+4. ידע תחום → `skills/<name>/SKILL.md` + רישום ב-agent.yaml.
+5. אחזור → `tools/rag` + תיקיית `corpus/`.
+6. `evals/suites/<name>.py` + `evals/datasets/<name>.yaml`.
+7. האג'נט מוכן כשעובר את ה-eval suite שלו.
 
-## 5. Conventions
+## 9. אל תעשה
 
-- **Python:** async-first (`async def` nodes, `asyncio`), type hints everywhere, Pydantic for
-  schemas. Keep nodes small and pure where possible; side effects go through tools.
-- **State:** a single typed state schema per agent in `state.py`; never mutate state outside
-  declared reducers.
-- **Events:** every node emits a start/end event with timing; traces are JSON-serializable
-  (this feeds the UI step inspector and observability).
-- **UI:** React, **RTL by default** (Hebrew), `dir="rtl"`. The step inspector must show each
-  node, its timing, inputs/outputs, and any pending human gate.
-- **Config over code:** budgets, allowlists, model names, and tool sets live in YAML, not in
-  source.
-- **Secrets:** never hardcode keys. Read from `security/secrets.py` / environment. The
-  OpenRouter key, SafeAI credentials, and any MCP server tokens are secrets.
+- אל תקרא ל-OpenRouter מחוץ ל-`SafeAIProxy`.
+- אל תוסיף לוגיקת אג'נט ל-`core/runtime` — הוא נשאר גנרי.
+- אל תוסיף MCP/embeddings/browser בלי אג'נט שזקוק להם (מורכבות מיותרת).
+- אל תקודד מפתחות/מודלים/budgets בקוד.
+- אל תיתן ל-RAG agent לענות מחוץ למקורות שאוחזרו (grounding).
 
----
+## 10. הרצה מהירה
 
-## 6. Security rules (non-negotiable)
-
-1. **Browser is sandboxed:** isolated persistent context, **domain allowlist enforced by the
-   permission broker**, no access to the local filesystem, hard step/timeout limits per run.
-2. **Code execution is sandboxed:** runs only inside the Docker sandbox (`infra/sandbox/`),
-   never on the host. No host network unless explicitly allowlisted.
-3. **Every sensitive action is brokered:** file, network, and browser actions are authorized
-   through `security/permissions.py` against `agent.yaml` policy before execution.
-4. **Guardrails are mandatory:** no path bypasses the SafeAI I/O proxy.
-5. **Budgets are enforced:** `providers/openrouter.py` tracks usage and stops an agent that
-   exceeds its `agent.yaml` budget cap.
-
----
-
-## 7. How to add a new agent
-
-1. Create `core/agents/<name>/` with `graph.py`, `nodes.py`, `agent.yaml`.
-2. Define state in/alongside `graph.py` (or reuse a shared schema).
-3. List required tools in `agent.yaml`; ensure each is a registered MCP server in
-   `tools/mcp/servers.yaml`.
-4. Declare guardrails, human gates, model, and budget in `agent.yaml`.
-5. Add an eval suite under `evals/suites/<name>/` with a dataset under `evals/datasets/`.
-6. The agent must pass its eval suite (`evals/runner.py`) before it is considered done.
-
----
-
-## 8. Human-in-the-loop
-
-Use LangGraph `interrupt()` + checkpointer for approval gates. The reference pattern is a
-**two-gate model**: (1) spec/plan approval before execution, (2) a smoke-test/verification
-gate before finalizing. Pending gates surface in the UI; resume via `Command`.
-
----
-
-## 9. Provider notes (OpenRouter)
-
-- Single client in `providers/openrouter.py`. Always pass through `safeai_proxy`.
-- Track `usage` from responses; enforce per-agent budget caps; fail closed on overage.
-- For browser/tool agents, prefer **DOM-driven** control so any tool-calling model works —
-  do **not** require a vision model (free-tier models will struggle with vision loops).
-- Pin model names in `agent.yaml`/config, not in code.
-
----
-
-## 10. Commands (proposed — define as the project is scaffolded)
-
-```bash
-# Python core (sidecar)
-uv venv && uv pip install -e ./core      # or poetry, decide once
-uvicorn core.server.app:app --reload     # run the core API
-
-# Desktop app
-cd apps/desktop && npm install
-npm run tauri dev                         # run UI + spawn sidecar
-
-# Evals
-python -m evals.runner --suite <agent>    # run one agent's evals
-python -m evals.runner --all              # CI regression
-
-# Quality
-ruff check . && ruff format .             # lint/format Python
-pytest                                    # tests
+```powershell
+pip install -e .            # + pip install pypdf truststore
+$env:OPENROUTER_API_KEY="sk-or-..."
+python -m core.cli --list
+python -m core.cli --agent device_guide --chat
+python -m evals.runner --suite plumber
+uvicorn core.server.app:app --reload
 ```
 
-> Update this section with the real commands as soon as the tooling is chosen
-> (uv vs poetry, test layout, etc.). Keep it accurate — agents rely on it.
+## 11. מה לא ממומש (כיוונים פתוחים)
 
----
-
-## 11. Do NOT
-
-- Do **not** call OpenRouter outside the SafeAI guardrails proxy.
-- Do **not** give tools direct OS/file/network access — everything goes through the broker.
-- Do **not** run generated code outside the Docker sandbox.
-- Do **not** add agent logic to `core/runtime` — the runtime stays generic.
-- Do **not** introduce a vision-based browser loop unless DOM control is proven insufficient.
-- Do **not** hardcode secrets, model names, budgets, or allowlists in source.
+- חיפוש אינטרנט (`tools/web/`) — נדון, מתוכנן כטול httpx פשוט (DuckDuckGo) עם fallback ב-device_guide.
+- embeddings סמנטיים ל-RAG; long-term memory; UI (Tauri); ייצוא observability; code_exec/browser/mcp.
