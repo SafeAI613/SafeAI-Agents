@@ -1,0 +1,21 @@
+# Declarative config for the plumber (אינסטלטור) agent.
+# Adding/changing an agent should mean editing YAML like this — not the runtime.
+
+name: plumber
+display_name: "יועץ אינסטלציה"
+description: "עונה על שאלות אינסטלציה ביתיות בעברית, עם דגש על בטיחות."
+
+model: "anthropic/claude-3.5-sonnet"   # any OpenRouter tool-capable model
+max_output_tokens: 800
+budget_tokens: 4000                     # hard cap per run (enforced in provider)
+
+# Tools this agent may use. The plumber is pure Q&A — no tools.
+tools: []
+
+# Human-in-the-loop gates (none for this simple agent).
+gates: []
+
+# Guardrails always apply (local policies + SafeAI if enabled in config/default.yaml).
+guardrails:
+  input: true
+  output: true

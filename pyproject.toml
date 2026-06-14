@@ -1,0 +1,30 @@
+[project]
+name = "ai-agents-desktop"
+version = "0.1.0"
+description = "Desktop AI agents system — LangGraph workflows, guardrails, evals, OpenRouter."
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langgraph-checkpoint>=2.0.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.5.0",
+    "pyyaml>=6.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.4.0"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["core*", "evals*"]
+# config/ is read by path (not a Python package); tests/ is excluded from the dist.

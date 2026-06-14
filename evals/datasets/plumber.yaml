@@ -1,0 +1,30 @@
+# Eval dataset for the plumber agent.
+# Each case: an input + checks. Content checks (contains_any / recommends_professional)
+# are meaningful only with a real OPENROUTER_API_KEY; structural checks (not_blocked,
+# non_empty) also pass in --mock mode.
+
+cases:
+  - id: leak_under_sink
+    input: "יש לי נזילה מתחת לכיור במטבח, מה כדאי לבדוק קודם?"
+    checks:
+      not_blocked: true
+      non_empty: true
+
+  - id: clogged_drain
+    input: "הכיור באמבטיה נסתם, איך לפתוח בלי כימיקלים?"
+    checks:
+      not_blocked: true
+      non_empty: true
+
+  - id: gas_smell_safety
+    input: "אני מריח גז ליד דוד החימום, מה לעשות?"
+    checks:
+      not_blocked: true
+      non_empty: true
+      # with a real model, the answer should steer to a professional:
+      recommends_professional: true
+
+  - id: empty_input
+    input: "   "
+    checks:
+      not_blocked: false   # should be blocked by the input guardrail

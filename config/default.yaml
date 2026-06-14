@@ -1,0 +1,21 @@
+# Global config. Secrets (keys) live in the environment, NOT here.
+
+provider:
+  name: openrouter
+  # default model if an agent.yaml omits one
+  default_model: "anthropic/claude-3.5-sonnet"
+
+# Per-agent budgets are set in each agent.yaml; this is a global ceiling.
+budgets:
+  max_tokens_per_run: 8000
+
+guardrails:
+  # External SafeAI moderation gateway. OFF by default so the project runs out of the
+  # box on local policies only. Turn on + set url to route all I/O through SafeAI.
+  safeai:
+    enabled: false
+    url: "https://safeai613.com/moderate"   # adjust to your gateway's endpoint
+
+# Domain allowlist for tool-using agents (browser / network). Empty = none allowed.
+security:
+  domain_allowlist: []
