@@ -21,6 +21,11 @@ class AgentState(TypedDict, total=False):
     draft_answer: str          # provider output before output-guardrails
     final_answer: str          # what the user sees
 
+    # --- RAG (used by retrieval agents like device_guide) ---
+    retrieved: str             # retrieved context (manual chunks) for grounding
+    sources: list[str]         # which documents the context came from
+
+
     # --- control / safety ---
     blocked: bool              # set True if a guardrail blocked the turn
     block_reason: str          # human-readable reason

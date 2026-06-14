@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from typing import Callable
 
+from core.agents.device_guide.graph import make_agent as make_device_guide
 from core.agents.plumber.graph import make_agent as make_plumber
 
 # name -> factory(mock: bool | None) -> agent
 _REGISTRY: dict[str, Callable] = {
     "plumber": make_plumber,
+    "device_guide": make_device_guide,
 }
 
 

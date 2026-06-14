@@ -1,0 +1,27 @@
+# Declarative config for the device-guide (מדריך מכשירים) agent.
+
+name: device_guide
+display_name: "מדריך מכשירים"
+description: "עונה על שאלות שימוש במכשירי חשמל ביתיים, מבוסס על קורפוס מדריכים מקומי (RAG)."
+
+model: "openrouter/free"   # for high-quality Hebrew prefer e.g. anthropic/claude-sonnet-4.5
+max_output_tokens: 900
+budget_tokens: 6000
+
+# Local RAG tool (lexical retrieval over the corpus dir below).
+tools:
+  - rag
+
+rag:
+  corpus_dir: corpus       # relative to this agent's folder
+  top_k: 4
+
+# SKILL.md domain instructions injected into the system prompt.
+skills:
+  - device-manuals
+
+gates: []
+
+guardrails:
+  input: true
+  output: true
