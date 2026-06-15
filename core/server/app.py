@@ -26,6 +26,7 @@ from core.agents.registry import get_agent, list_agents
 from core.auth.models import TokenResponse, UserLogin, UserRegister
 from core.auth.service import decode_token, login_user, record_usage, register_user
 from core.runtime.orchestrator import run_agent
+from core.security.api_keys import clear_key, get_stored_key, store_key
 
 app = FastAPI(title="AI Agents Desktop — core")
 
@@ -74,6 +75,36 @@ class RunRequest(BaseModel):
     agent: str = "plumber"
     question: str
     mock: bool | None = None
+
+
+class KeyRequest(BaseModel):
+    key: str
+
+
+@app.post("/auth/key")
+def set_api_key(body: KeyRequest, email: str = Depends(current_user)) -> dict[str, str]:
+    """Store the user's OpenRouter key in the OS keychain. Key never logged."""
+    if not body.key.startswith("sk-"):
+        raise HTTPException(status_code=422, detail="מפתח לא תקין")
+    store_key(body.key)
+    stored = get_stored_key() or ""
+    masked = f"...{stored[-4:]}" if len(stored) >= 4 else "מוגדר"
+    return {"status": "ok", "masked": masked}
+
+
+@app.get("/auth/key")
+def key_status(email: str = Depends(current_user)) -> dict[str, Any]:
+    """Returns whether a key is stored and its last 4 chars. Never returns the full key."""
+    stored = get_stored_key()
+    if stored:
+        return {"set": True, "masked": f"...{stored[-4:]}"}
+    return {"set": False, "masked": None}
+
+
+@app.delete("/auth/key")
+def delete_api_key(email: str = Depends(current_user)) -> dict[str, str]:
+    clear_key()
+    return {"status": "ok"}
 
 
 @app.get("/agents")

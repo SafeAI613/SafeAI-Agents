@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from core.security.secrets import get_secret
+from core.security.api_keys import resolve_openrouter_key
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -41,7 +41,7 @@ class OpenRouterProvider:
         self.model = model
         self.max_output_tokens = max_output_tokens
         self.budget_tokens = budget_tokens
-        self._api_key = get_secret("OPENROUTER_API_KEY")
+        self._api_key = resolve_openrouter_key()
         # mock if explicitly requested, or if no key is available
         self.mock = mock if mock is not None else (self._api_key is None)
 

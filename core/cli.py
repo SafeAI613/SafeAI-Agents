@@ -11,11 +11,12 @@ It prints the step inspector (each node + timing), then the answer and token usa
 from __future__ import annotations
 
 import argparse
+import getpass
 import sys
 
 from core.agents.registry import get_agent, list_agents
 from core.runtime.orchestrator import run_agent
-from core.security.secrets import get_secret
+from core.security.api_keys import clear_key, resolve_openrouter_key, store_key
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -28,7 +29,7 @@ def _print_event(ev: dict) -> None:
         status = "ok" if ev["ok"] else f"ERROR: {ev['error']}"
         print(f"  ✔ {ev['node']}  ({ev['duration_ms']} ms)  [{status}]", flush=True)
 
-def chat_loop(agent_name: str, mock: bool | None) -> int:
+def chat_loop(agent_name: str, mock: bool | None, *, api_key: str | None = None) -> int:
     """Multi-turn conversation loop. History is held here and passed into each turn,
     so the agent can ask clarifying questions and then answer based on the replies."""
     agent = get_agent(agent_name, mock=mock)
@@ -47,7 +48,7 @@ def chat_loop(agent_name: str, mock: bool | None) -> int:
         if user in {"יציאה", "exit", "quit", "q"}:
             break
 
-        final = run_agent(agent, user, history=history)
+        final = run_agent(agent, user, history=history, api_key=api_key)
         answer = final.get("final_answer", "(no answer)")
         print(f"\אייג'נט> {answer}\n")
 
@@ -70,29 +71,44 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--mock", action="store_true", help="force mock provider (no API key)")
     p.add_argument("--chat", action="store_true", help="interactive multi-turn chat loop")
     p.add_argument("--list", action="store_true", help="list available agents")
+    p.add_argument("--api-key", help="OpenRouter API key for this run only (not stored)")
+    p.add_argument("--set-key", action="store_true", help="save OpenRouter key to OS keychain")
+    p.add_argument("--clear-key", action="store_true", help="remove stored key from OS keychain")
     args = p.parse_args(argv)
+
+    if args.set_key:
+        key = getpass.getpass("OpenRouter API key: ").strip()
+        if not key:
+            print("לא הוזן מפתח.")
+            return 1
+        store_key(key)
+        print("המפתח נשמר ב-keychain.")
+        return 0
+
+    if args.clear_key:
+        clear_key()
+        print("המפתח נמחק מה-keychain.")
+        return 0
 
     if args.list:
         print("Available agents:", ", ".join(list_agents()))
         return 0
 
     mock = True if args.mock else None
-    if mock is None and not get_secret("OPENROUTER_API_KEY"):
+    if mock is None and not resolve_openrouter_key():
         print("ℹ️  OPENROUTER_API_KEY not set — running in MOCK mode.\n")
 
     if args.chat:
-        return chat_loop(args.agent, mock)
+        return chat_loop(args.agent, mock, api_key=args.api_key)
 
     if not args.question:
         p.error("a question is required (or use --chat / --list)")
 
     agent = get_agent(args.agent, mock=mock)
 
-    agent = get_agent(args.agent, mock=mock)
-
     print(f"=== running agent: {agent.name} ===")
     print("--- step inspector ---")
-    final = run_agent(agent, args.question, on_event=_print_event)
+    final = run_agent(agent, args.question, api_key=args.api_key, on_event=_print_event)
 
     print("\n--- answer ---")
     print(final.get("final_answer", "(no answer)"))

@@ -1,6 +1,7 @@
 interface Props {
   agents: string[];
   userEmail: string;
+  keyMasked: string | null;
   onSelect: (agent: string) => void;
   onLogout: () => void;
 }
@@ -10,7 +11,7 @@ const AGENT_DESCRIPTIONS: Record<string, string> = {
   device_guide: "מדריך מכשירים — עונה על שאלות מתוך מדריכי הפעלה מקומיים",
 };
 
-export function AgentSelect({ agents, userEmail, onSelect, onLogout }: Props) {
+export function AgentSelect({ agents, userEmail, keyMasked, onSelect, onLogout }: Props) {
   return (
     <div className="agent-select-screen">
       <div className="agent-select-header">
@@ -18,6 +19,10 @@ export function AgentSelect({ agents, userEmail, onSelect, onLogout }: Props) {
         <p className="agent-select-subtitle">בחר/י אג'נט להתחלת שיחה</p>
         <div className="agent-select-user">
           <span className="user-email">{userEmail}</span>
+          {keyMasked
+            ? <span className="key-status">🔑 מפתח מוגדר {keyMasked}</span>
+            : <span className="key-status key-status--mock">⚠️ מצב Mock</span>
+          }
           <button className="logout-btn" onClick={onLogout}>יציאה</button>
         </div>
       </div>

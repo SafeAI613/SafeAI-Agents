@@ -38,6 +38,38 @@ export async function fetchAgents(token: string): Promise<string[]> {
   return data.agents as string[];
 }
 
+// ── api key (stored server-side in OS keychain) ───────────────────────────────
+
+export interface KeyStatus {
+  set: boolean;
+  masked: string | null;
+}
+
+export async function saveApiKey(token: string, key: string): Promise<{ masked: string }> {
+  const res = await fetch(`${BASE}/auth/key`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ key }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "שגיאה בשמירת המפתח");
+  return data as { masked: string };
+}
+
+export async function fetchKeyStatus(token: string): Promise<KeyStatus> {
+  const res = await fetch(`${BASE}/auth/key`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return (await res.json()) as KeyStatus;
+}
+
+export async function deleteApiKey(token: string): Promise<void> {
+  await fetch(`${BASE}/auth/key`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 // ── streaming run ─────────────────────────────────────────────────────────────
 
 export type StreamCallback = (event: { kind: string; data: unknown }) => void;

@@ -80,3 +80,24 @@ class SafeAIProxy:
             return GuardedResult("", True, f"output: {out.reason}", completion)
 
         return GuardedResult(completion.text, False, "", completion)
+
+    def stream_complete(self, messages: list[dict], on_token: callable, *,
+                        used_tokens: int = 0) -> GuardedResult:
+        user_text = next((m["content"] for m in reversed(messages)
+                          if m["role"] == "user"), "")
+
+        inp = policies.check_input(user_text)
+        if inp.ok:
+            inp = self._safeai_check(user_text, "input")
+        if not inp.ok:
+            return GuardedResult("", True, f"input: {inp.reason}", None)
+
+        completion = self.provider.stream_complete(messages, on_token, used_tokens=used_tokens)
+
+        out = policies.check_output(completion.text)
+        if out.ok:
+            out = self._safeai_check(completion.text, "output")
+        if not out.ok:
+            return GuardedResult("", True, f"output: {out.reason}", completion)
+
+        return GuardedResult(completion.text, False, "", completion)
