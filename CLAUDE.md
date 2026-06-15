@@ -21,7 +21,8 @@
 - תשתית [ממומש]: orchestrator גנרי, tracing per-node, state משותף, לולאת שיחה רב-תורית,
   budget cap, guardrails (policies מקומיים + hook ל-SafeAI), eval harness (כולל רב-תורי).
 - כלים: `skills/` [ממומש], `rag/` [ממומש]. `mcp/`, `code_exec/`, `browser/` [stub].
-- UI (Tauri/React) [לא ממומש] — השרת מוכן כ-seam.
+- אימות משתמשים [ממומש]: `core/auth/` — register/login, JWT, MongoDB Atlas, סטטיסטיקות.
+- UI React [ממומש חלקי]: מסך Login + AgentSelect + Chat, מחובר לשרת דרך JWT.
 
 ## 3. החלטות ארכיטקטורה (מחייבות)
 
@@ -44,7 +45,11 @@
 core/
   __init__.py            תיקון TLS לנטפרי (truststore) — רץ בכל ייבוא
   cli.py                 הרצה: שאלה בודדת + --chat (רב-תורי) + --list
-  server/app.py          FastAPI: /agents, /run, /ws/run
+  server/app.py          FastAPI: /auth/register, /auth/login, /agents, /run, /ws/run
+  auth/
+    mongo.py             חיבור MongoDB Atlas (pymongo, singleton)
+    models.py            סכמות Pydantic: UserRegister, UserLogin, TokenResponse
+    service.py           register_user, login_user (bcrypt+JWT), record_usage
   agents/
     registry.py          רישום אג'נטים — נקודת ההוספה
     plumber/             graph.py + nodes.py + agent.yaml + skills/israeli-plumbing/
@@ -115,10 +120,13 @@ docs/FILE_GUIDE.md       מפת קבצים מפורטת
 ```powershell
 pip install -e .            # + pip install pypdf truststore
 $env:OPENROUTER_API_KEY="sk-or-..."
+$env:MONGODB_URI="mongodb+srv://..."   # MongoDB Atlas
+$env:JWT_SECRET="..."                  # מחרוזת אקראית ארוכה
 python -m core.cli --list
 python -m core.cli --agent device_guide --chat
 python -m evals.runner --suite plumber
 uvicorn core.server.app:app --reload
+# client: cd client && npm run dev
 ```
 
 ## 11. מה לא ממומש (כיוונים פתוחים)
