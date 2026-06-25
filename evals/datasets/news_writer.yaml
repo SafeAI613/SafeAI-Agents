@@ -1,0 +1,24 @@
+# Eval dataset for the news_writer agent.
+# In --mock mode the web tool returns canned results (with URLs), so has_sources and
+# cites_source are meaningful even offline. Content quality needs a real OPENROUTER_API_KEY.
+
+cases:
+  - id: weekly_ai_roundup
+    input: "חידושים אחרונים בעולם ה-AI מהשבוע האחרון"
+    checks:
+      not_blocked: true
+      non_empty: true
+      has_sources: true
+      cites_source: true
+
+  - id: topic_open_models
+    input: "מודלים פתוחים חדשים"
+    checks:
+      not_blocked: true
+      non_empty: true
+      has_sources: true
+
+  - id: empty_input
+    input: "   "
+    checks:
+      not_blocked: false   # blocked by the input guardrail

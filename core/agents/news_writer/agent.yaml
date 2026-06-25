@@ -1,0 +1,38 @@
+# Declarative config for the news_writer (כתב חדשות AI) agent.
+# Like every agent: adding/changing it means editing YAML here, not the runtime.
+
+name: news_writer
+display_name: "כתב חדשות AI"
+description: "מחפש חידושים אחרונים בעולם ה-AI ומנסח מהם הודעה חדשותית קצרה בעברית."
+
+# לעברית איכותית עדיף anthropic/claude-sonnet-4.5 (ראה CLAUDE.md §3).
+# ברירת מחדל חינמית כדי שירוץ מהקופסה:
+model: "qwen/qwen3-next-80b-a3b-instruct:free"    # any OpenRouter tool-capable model
+
+max_output_tokens: 900
+budget_tokens: 6000                         # hard cap per run (enforced in provider)
+
+# Tools this agent may use. It retrieves fresh items from the web (local httpx tool).
+tools:
+  - web
+
+# Skills (SKILL.md domain knowledge) injected into the system prompt.
+skills:
+  - ai-news
+
+# Human-in-the-loop gates (none).
+gates: []
+
+# Web-search tool config. Network is brokered through the PermissionBroker against this
+# allowlist (the search endpoint only — we use snippets, we don't crawl result pages).
+web:
+  max_results: 6
+  recency: "w"                              # d=day, w=week, m=month, "" = no time filter
+  query_suffix: "AI news this week"         # appended to the user's topic for the search
+  domain_allowlist:
+    - html.duckduckgo.com
+
+# Guardrails always apply (local policies + SafeAI if enabled in config/default.yaml).
+guardrails:
+  input: true
+  output: true

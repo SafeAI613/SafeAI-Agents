@@ -19,7 +19,7 @@ from core.runtime.orchestrator import run_agent
 from core.security.api_keys import clear_key, resolve_openrouter_key, store_key
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
     
 def _print_event(ev: dict) -> None:
