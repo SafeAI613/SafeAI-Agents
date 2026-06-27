@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import type { Message } from "../types";
 import { StepInspector } from "./StepInspector";
+import { ToolLog } from "./ToolLog";
 
 interface Props {
   msg: Message;
@@ -16,6 +17,9 @@ export function ChatMessage({ msg }: Props) {
           <div className="md"><ReactMarkdown children={msg.content ?? ""} /></div>
         )}
       </div>
+      {msg.tool_calls && msg.tool_calls.length > 0 && (
+        <ToolLog calls={msg.tool_calls} />
+      )}
       {msg.sources && msg.sources.length > 0 && (
         <div className="sources">
           <span className="sources-label">מקורות: </span>

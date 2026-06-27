@@ -1,0 +1,26 @@
+# Declarative config for the workbench (שולחן עבודה) agent — the tool-using agent.
+
+name: workbench
+display_name: "שולחן עבודה"
+description: "אג'נט כללי שמריץ משימות במחשב: כלי MCP (קבצים ועוד) + הרצת קוד בארגז-חול."
+
+# model: "anthropic/claude-sonnet-4.5"   # tool calling needs a capable model; free tiers vary
+model: "openai/gpt-5.4-mini"  
+max_output_tokens: 1200
+budget_tokens: 20000
+
+# Upper bound on model<->tool round-trips per turn.
+max_tool_iters: 6
+
+# Tools are resolved at runtime: every enabled MCP server in
+# infra/mcp-servers/servers.yaml, plus the built-in code-exec sandbox.
+tools:
+  - mcp
+  - code_exec
+
+skills: []
+gates: []
+
+guardrails:
+  input: true
+  output: true

@@ -25,6 +25,9 @@ class AgentState(TypedDict, total=False):
     retrieved: str             # retrieved context (manual chunks) for grounding
     sources: list[str]         # which documents the context came from
 
+    # --- tool use (used by tool-calling agents like workbench) ---
+    tool_calls: list[dict]     # log of executed tool calls: {tool, arguments, result, ok}
+    attachments: list[dict]    # files the user attached this turn: {name, path, mime}
 
     # --- control / safety ---
     blocked: bool              # set True if a guardrail blocked the turn

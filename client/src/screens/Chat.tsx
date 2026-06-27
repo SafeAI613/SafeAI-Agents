@@ -3,7 +3,8 @@ import ReactMarkdown from "react-markdown";
 import { runAgentWS } from "../api";
 import { ChatMessage } from "../components/ChatMessage";
 import { StepInspector } from "../components/StepInspector";
-import type { Message, NodeEvent } from "../types";
+import { AudioInput } from "../components/AudioInput";
+import type { Message, NodeEvent, ToolCallRecord } from "../types";
 
 interface Props {
   agent: string;
@@ -44,7 +45,8 @@ export function Chat({ agent, token, onBack }: Props) {
           const ev = msg.data as NodeEvent;
           collectedTrace.push(ev);
           setLiveTrace([...collectedTrace]);
-          if (ev.status === "start") setLiveNode(ev.node);
+          // tracer emits {type:'node_start'|'node_end', node}; derive the live node label
+          if (ev.type === "node_start" || ev.status === "start") setLiveNode(ev.node);
           else setLiveNode(undefined);
         } else if (msg.kind === "token") {
           streamed += msg.data as string;
@@ -59,10 +61,18 @@ export function Chat({ agent, token, onBack }: Props) {
             "לא התקבלה תשובה";
           const sources = data.sources as string[] | undefined;
           const blocked = data.blocked as boolean | undefined;
+          const toolCalls = data.tool_calls as ToolCallRecord[] | undefined;
           setStreamingText("");
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: answer, sources, trace: [...collectedTrace], blocked },
+            {
+              role: "assistant",
+              content: answer,
+              sources,
+              trace: [...collectedTrace],
+              blocked,
+              tool_calls: toolCalls,
+            },
           ]);
           setLiveTrace([]);
           setLiveNode(undefined);
@@ -80,6 +90,10 @@ export function Chat({ agent, token, onBack }: Props) {
       e.preventDefault();
       send();
     }
+  }
+
+  function onTranscript(text: string) {
+    setInput((prev) => (prev ? prev + " " + text : text));
   }
 
   return (
@@ -124,6 +138,7 @@ export function Chat({ agent, token, onBack }: Props) {
       </main>
 
       <footer className="input-area">
+        <AudioInput token={token} disabled={loading} onTranscript={onTranscript} />
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}

@@ -1,0 +1,32 @@
+# MCP server registry. Loaded by core/tools/mcp/registry.py.
+#
+# Each server is gated by the permission broker:
+#   * stdio  -> command must be on mcp.command_allowlist (config/default.yaml)
+#   * http   -> url host must be on security.domain_allowlist
+# ${ENV_VAR} is expanded from the environment (keep tokens out of this file).
+
+servers:
+
+  # Local filesystem access, scoped to one root. Official server via npx (Node required).
+  filesystem:
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "${MCP_FS_ROOT}"]
+    enabled: true
+
+  # Your SafeAI content-filtering API, wrapped as an MCP server (the wheel you distribute).
+  # stdio variant — runs the installed console script. Bearer token from env.
+  safeai:
+    transport: stdio
+    command: safeai-mcp
+    env:
+      SAFEAI_TOKEN: "${SAFEAI_TOKEN}"
+    enabled: false
+
+  # Same SafeAI wrapper reached over the network instead (streamable-http).
+  safeai_http:
+    transport: streamable-http
+    url: "https://mcp.safeai613.com/mcp"
+    headers:
+      Authorization: "Bearer ${SAFEAI_TOKEN}"
+    enabled: false

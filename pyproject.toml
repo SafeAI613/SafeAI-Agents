@@ -20,11 +20,17 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "bcrypt>=3.2.0,<4.0",
     "pydantic[email]",
-    "keyring>=24.0.0"
+    "keyring>=24.0.0",
+    "python-multipart>=0.0.9",
+    "mcp>=1.8"
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4.0"]
+# Local speech-to-text for the /stt endpoint. Requires ffmpeg on PATH.
+stt = ["faster-whisper>=1.0.0"]
+# Packaging the core as a Tauri sidecar binary.
+desktop = ["pyinstaller>=6.0"]
 
 [tool.ruff]
 line-length = 100

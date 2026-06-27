@@ -4,6 +4,7 @@ import { ApiKeyModal } from "./components/ApiKeyModal";
 import { Login } from "./screens/Login";
 import { AgentSelect } from "./screens/AgentSelect";
 import { Chat } from "./screens/Chat";
+import { Workbench } from "./screens/Workbench";
 import "./App.css";
 
 const TOKEN_KEY = "auth_token";
@@ -72,6 +73,8 @@ export default function App() {
           onSelect={setSelectedAgent}
           onLogout={handleLogout}
         />
+      ) : selectedAgent === "workbench" ? (
+        <Workbench token={token} onBack={() => setSelectedAgent(null)} />
       ) : (
         <Chat agent={selectedAgent} token={token} onBack={() => setSelectedAgent(null)} />
       )}

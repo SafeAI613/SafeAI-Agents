@@ -2,20 +2,42 @@
 
 provider:
   name: openrouter
-  # default model if an agent.yaml omits one
   default_model: "google/gemini-2.5-flash:free"
 
-# Per-agent budgets are set in each agent.yaml; this is a global ceiling.
 budgets:
   max_tokens_per_run: 8000
 
 guardrails:
-  # External SafeAI moderation gateway. OFF by default so the project runs out of the
-  # box on local policies only. Turn on + set url to route all I/O through SafeAI.
   safeai:
     enabled: false
-    url: "https://safeai613.com/moderate"   # adjust to your gateway's endpoint
+    url: "https://safeai613.com/moderate"
 
-# Domain allowlist for tool-using agents (browser / network). Empty = none allowed.
+# Domain allowlist for tool-using agents (web tool, http MCP servers). Empty = none.
 security:
-  domain_allowlist: []
+  domain_allowlist:
+    - "mcp.safeai613.com"
+
+# MCP layer (core/tools/mcp). Which local executables stdio servers may launch.
+# Empty list = allow any (dev). Lock this down in production.
+mcp:
+  command_allowlist:
+    - "npx"
+    - "uvx"
+    - "safeai-mcp"
+
+# Code execution (core/tools/code_exec). OFF by default.
+code_exec:
+  enabled: false        # set true to allow the workbench agent to run code
+  allow_host: false     # NEVER true in production — runs code on the host with no isolation
+  timeout_seconds: 20
+  memory: "256m"
+
+# Files API workspace root (core/server file endpoints). The UI's file browser is scoped here.
+files:
+  workspace: "~/ai-agents-workspace"
+
+# Speech-to-text backend for the /stt endpoint. "local" = faster-whisper (pip extra).
+stt:
+  backend: "local"      # "local" | "disabled"
+  model: "base"         # faster-whisper model size: tiny|base|small|medium|large-v3
+  language: "he"

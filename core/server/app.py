@@ -1,22 +1,32 @@
-"""FastAPI sidecar — the local API the desktop UI (Tauri) will attach to.
+"""FastAPI sidecar — the local API the desktop UI (Tauri) attaches to.
 
-Endpoints:
-    POST /auth/register  -> register new user, returns JWT
-    POST /auth/login     -> login, returns JWT
-    GET  /agents         -> list available agents  [requires JWT]
-    POST /run            -> run an agent            [requires JWT]
-    WS   /ws/run         -> stream node events      [requires JWT via ?token=]
+Auth + agents (existing):
+    POST /auth/register | /auth/login        -> JWT
+    GET/POST/DELETE /auth/key                 -> OpenRouter key in OS keychain
+    GET  /agents                              -> list agents
+    POST /run                                 -> run an agent (returns final state)
+    WS   /ws/run                              -> stream node + tool-call events
+
+Tools surface for the desktop UI (new):
+    GET  /mcp/servers     POST /mcp/connect   -> connect/disconnect MCP servers
+    GET  /mcp/tools       POST /mcp/call      -> list / invoke MCP tools
+    POST /code/run                            -> run code in the sandbox
+    GET  /files  /files/read   POST /files/write  /files/upload  -> workspace file ops
+    POST /stt                                 -> transcribe uploaded audio
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import (Depends, FastAPI, File, Form, HTTPException, Query, Request,
+                     UploadFile, WebSocket, WebSocketDisconnect)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
@@ -27,6 +37,7 @@ from core.auth.models import TokenResponse, UserLogin, UserRegister
 from core.auth.service import decode_token, login_user, record_usage, register_user
 from core.runtime.orchestrator import run_agent
 from core.security.api_keys import clear_key, get_stored_key, store_key
+from core.security.secrets import load_config
 
 app = FastAPI(title="AI Agents Desktop — core")
 
@@ -41,14 +52,13 @@ _bearer = HTTPBearer()
 
 
 def current_user(creds: HTTPAuthorizationCredentials = Depends(_bearer)) -> str:
-    """FastAPI dependency — validates JWT and returns email."""
     try:
         return decode_token(creds.credentials)
     except JWTError:
         raise HTTPException(status_code=401, detail="טוקן לא תקין או פג תוקף")
 
 
-# ── auth endpoints (public) ───────────────────────────────────────────────────
+# ── auth (public) ─────────────────────────────────────────────────────────────
 
 @app.post("/auth/register", response_model=TokenResponse)
 def auth_register(body: UserRegister) -> TokenResponse:
@@ -69,13 +79,7 @@ def auth_login(body: UserLogin, request: Request) -> TokenResponse:
     return TokenResponse(access_token=token, email=body.email.lower())
 
 
-# ── protected endpoints ───────────────────────────────────────────────────────
-
-class RunRequest(BaseModel):
-    agent: str = "plumber"
-    question: str
-    mock: bool | None = None
-
+# ── api key ───────────────────────────────────────────────────────────────────
 
 class KeyRequest(BaseModel):
     key: str
@@ -83,7 +87,6 @@ class KeyRequest(BaseModel):
 
 @app.post("/auth/key")
 def set_api_key(body: KeyRequest, email: str = Depends(current_user)) -> dict[str, str]:
-    """Store the user's OpenRouter key in the OS keychain. Key never logged."""
     if not body.key.startswith("sk-"):
         raise HTTPException(status_code=422, detail="מפתח לא תקין")
     store_key(body.key)
@@ -94,7 +97,6 @@ def set_api_key(body: KeyRequest, email: str = Depends(current_user)) -> dict[st
 
 @app.get("/auth/key")
 def key_status(email: str = Depends(current_user)) -> dict[str, Any]:
-    """Returns whether a key is stored and its last 4 chars. Never returns the full key."""
     stored = get_stored_key()
     if stored:
         return {"set": True, "masked": f"...{stored[-4:]}"}
@@ -105,6 +107,14 @@ def key_status(email: str = Depends(current_user)) -> dict[str, Any]:
 def delete_api_key(email: str = Depends(current_user)) -> dict[str, str]:
     clear_key()
     return {"status": "ok"}
+
+
+# ── agents / run ──────────────────────────────────────────────────────────────
+
+class RunRequest(BaseModel):
+    agent: str = "plumber"
+    question: str
+    mock: bool | None = None
 
 
 @app.get("/agents")
@@ -122,7 +132,6 @@ def run(req: RunRequest, email: str = Depends(current_user)) -> dict[str, Any]:
 
 @app.websocket("/ws/run")
 async def ws_run(ws: WebSocket, token: str = Query(...)) -> None:
-    # WebSocket doesn't support Authorization header — token passed as query param
     try:
         email = decode_token(token)
     except JWTError:
@@ -167,3 +176,169 @@ async def ws_run(ws: WebSocket, token: str = Query(...)) -> None:
             await ws.close()
         except Exception:
             pass
+
+
+# ── MCP ───────────────────────────────────────────────────────────────────────
+
+class McpConnectRequest(BaseModel):
+    name: str
+    action: str = "connect"      # "connect" | "disconnect"
+
+
+class McpCallRequest(BaseModel):
+    tool: str                    # "server.tool"
+    arguments: dict[str, Any] = {}
+
+
+@app.get("/mcp/servers")
+def mcp_servers(email: str = Depends(current_user)) -> dict[str, Any]:
+    from core.tools.mcp import get_manager, load_specs
+    mgr = get_manager()
+    connected = set(mgr.connected_servers())
+    specs = [{
+        "name": s.name, "transport": s.transport, "enabled": s.enabled,
+        "connected": s.name in connected,
+    } for s in load_specs()]
+    return {"servers": specs}
+
+
+@app.post("/mcp/connect")
+def mcp_connect(req: McpConnectRequest, email: str = Depends(current_user)) -> dict[str, Any]:
+    from core.tools.mcp import get_manager, load_specs
+    mgr = get_manager()
+    if req.action == "disconnect":
+        mgr.disconnect(req.name)
+        return {"status": "disconnected", "name": req.name}
+    spec = next((s for s in load_specs() if s.name == req.name), None)
+    if spec is None:
+        raise HTTPException(status_code=404, detail=f"שרת MCP '{req.name}' לא מוגדר")
+    try:
+        tools = mgr.connect(spec)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "connected", "name": req.name, "tool_count": len(tools)}
+
+
+@app.get("/mcp/tools")
+def mcp_tools(server: str | None = None, email: str = Depends(current_user)) -> dict[str, Any]:
+    from core.tools.mcp import describe_tools
+    return {"tools": describe_tools(server)}
+
+
+@app.post("/mcp/call")
+def mcp_call(req: McpCallRequest, email: str = Depends(current_user)) -> dict[str, Any]:
+    from core.tools.mcp import get_manager
+    try:
+        result = get_manager().call_tool(req.tool, req.arguments)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"tool": req.tool, "result": result}
+
+
+# ── code execution ────────────────────────────────────────────────────────────
+
+class CodeRunRequest(BaseModel):
+    code: str
+    language: str = "python"
+    stdin: str = ""
+
+
+@app.post("/code/run")
+def code_run(req: CodeRunRequest, email: str = Depends(current_user)) -> dict[str, Any]:
+    from core.tools.code_exec import run_code
+    from core.security.permissions import PermissionError_
+    try:
+        res = run_code(req.code, language=req.language, stdin=req.stdin)
+    except PermissionError_ as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {
+        "ok": res.ok, "stdout": res.stdout, "stderr": res.stderr,
+        "exit_code": res.exit_code, "timed_out": res.timed_out, "backend": res.backend,
+    }
+
+
+# ── files (scoped to a workspace root) ────────────────────────────────────────
+
+def _workspace() -> Path:
+    raw = (load_config().get("files", {}) or {}).get("workspace", "~/ai-agents-workspace")
+    root = Path(os.path.expanduser(raw)).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _safe(rel: str) -> Path:
+    root = _workspace()
+    target = (root / rel.lstrip("/\\")).resolve() if rel else root
+    if target != root and root not in target.parents:
+        raise HTTPException(status_code=403, detail="נתיב מחוץ לסביבת העבודה")
+    return target
+
+
+class FileWriteRequest(BaseModel):
+    path: str
+    content: str
+
+
+@app.get("/files")
+def files_list(path: str = "", email: str = Depends(current_user)) -> dict[str, Any]:
+    target = _safe(path)
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail="תיקייה לא נמצאה")
+    items = []
+    for p in sorted(target.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
+        items.append({
+            "name": p.name,
+            "path": str(p.relative_to(_workspace())),
+            "is_dir": p.is_dir(),
+            "size": p.stat().st_size if p.is_file() else None,
+        })
+    return {"path": path, "items": items}
+
+
+@app.get("/files/read")
+def files_read(path: str = Query(...), email: str = Depends(current_user)) -> dict[str, Any]:
+    target = _safe(path)
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="קובץ לא נמצא")
+    if target.stat().st_size > 1_000_000:
+        raise HTTPException(status_code=413, detail="הקובץ גדול מדי לתצוגה (>1MB)")
+    try:
+        content = target.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=415, detail="קובץ בינארי — לא ניתן להציג כטקסט")
+    return {"path": path, "content": content}
+
+
+@app.post("/files/write")
+def files_write(req: FileWriteRequest, email: str = Depends(current_user)) -> dict[str, str]:
+    target = _safe(req.path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(req.content, encoding="utf-8")
+    return {"status": "ok", "path": req.path}
+
+
+@app.post("/files/upload")
+async def files_upload(file: UploadFile = File(...), path: str = Form(""),
+                       email: str = Depends(current_user)) -> dict[str, Any]:
+    dest_dir = _safe(path)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = _safe(str(Path(path) / (file.filename or "upload.bin")))
+    dest.write_bytes(await file.read())
+    return {"status": "ok", "path": str(dest.relative_to(_workspace())),
+            "size": dest.stat().st_size}
+
+
+# ── speech-to-text ────────────────────────────────────────────────────────────
+
+@app.post("/stt")
+async def stt(file: UploadFile = File(...),
+              email: str = Depends(current_user)) -> dict[str, Any]:
+    from core.tools.stt import transcribe
+    data = await file.read()
+    try:
+        result = transcribe(data, filename=file.filename or "audio.webm")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return {"text": result.text, "language": result.language, "backend": result.backend}

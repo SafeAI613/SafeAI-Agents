@@ -1,0 +1,106 @@
+/* Workbench tools UI. Reuses the app's existing palette where possible. */
+
+.workbench { display: flex; flex-direction: column; height: 100vh; }
+
+.wb-tabs {
+  display: flex; gap: 4px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border, #2a2a33); background: var(--panel, #16161c);
+}
+.wb-tabs button {
+  padding: 6px 16px; border: none; border-radius: 8px; cursor: pointer;
+  background: transparent; color: var(--text-dim, #9a9aa6); font-size: 14px;
+}
+.wb-tabs button.active { background: var(--accent, #4f7cff); color: #fff; }
+
+.wb-body { flex: 1; min-height: 0; overflow: hidden; }
+
+.panel { height: 100%; overflow-y: auto; padding: 16px; box-sizing: border-box; }
+.panel h3 { margin: 18px 0 8px; font-size: 14px; color: var(--text, #e7e7ee); }
+.panel .muted { color: var(--text-dim, #8a8a96); font-size: 13px; }
+
+/* server + tool lists */
+.server-list, .tool-list { list-style: none; margin: 0; padding: 0; }
+.server-row, .tool-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border: 1px solid var(--border, #2a2a33); border-radius: 8px; margin-bottom: 6px;
+}
+.tool-row { flex-direction: column; align-items: stretch; cursor: pointer; }
+.tool-row.active { border-color: var(--accent, #4f7cff); }
+.tool-row code { color: var(--accent, #7ea0ff); font-size: 13px; }
+.tool-desc { color: var(--text-dim, #9a9aa6); font-size: 12px; }
+.server-name { font-weight: 600; }
+.server-meta { color: var(--text-dim, #8a8a96); font-size: 12px; }
+.server-row .mini-btn { margin-inline-start: auto; }
+
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.dot.on { background: #3ecf8e; }
+.dot.off { background: #5a5a66; }
+
+.mini-btn {
+  padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border, #2a2a33);
+  background: var(--panel-2, #20202a); color: var(--text, #e7e7ee); cursor: pointer; font-size: 13px;
+}
+.mini-btn:disabled { opacity: .5; cursor: default; }
+
+.tool-tester .args-box, .editor-area, .call-result, .tool-log-result, .tool-log-args {
+  width: 100%; box-sizing: border-box; font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 12px; direction: ltr; text-align: left;
+}
+.args-box {
+  background: #0e0e13; color: #d7d7e0; border: 1px solid var(--border, #2a2a33);
+  border-radius: 8px; padding: 8px; resize: vertical;
+}
+.call-result {
+  background: #0e0e13; color: #cfe9d8; padding: 10px; border-radius: 8px;
+  white-space: pre-wrap; word-break: break-word; margin-top: 8px;
+}
+
+/* files panel */
+.files-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.path-crumb { font-family: ui-monospace, monospace; color: var(--text-dim, #9a9aa6); direction: ltr; }
+.upload-btn { cursor: pointer; }
+.files-body { display: flex; gap: 12px; align-items: stretch; }
+.file-list { flex: 0 0 240px; list-style: none; margin: 0; padding: 0; }
+.file-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer;
+}
+.file-row:hover { background: var(--panel-2, #20202a); }
+.file-row.active { background: var(--accent-dim, #2a3a6e); }
+.file-name { flex: 1; }
+.file-size { color: var(--text-dim, #8a8a96); font-size: 11px; }
+.file-editor { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.editor-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.editor-head code { flex: 1; color: var(--accent, #7ea0ff); direction: ltr; }
+.editor-area {
+  flex: 1; min-height: 320px; background: #0e0e13; color: #d7d7e0;
+  border: 1px solid var(--border, #2a2a33); border-radius: 8px; padding: 10px;
+}
+
+/* tool log inside chat */
+.tool-log { margin-top: 6px; }
+.tool-log-toggle {
+  background: none; border: none; color: var(--text-dim, #9a9aa6); cursor: pointer; font-size: 12px;
+}
+.tool-log-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.tool-log-row {
+  border-inline-start: 2px solid #5a5a66; padding: 6px 10px; margin-bottom: 6px;
+}
+.tool-log-row.ok { border-color: #3ecf8e; }
+.tool-log-row.fail { border-color: #e0566b; }
+.tool-log-head { display: flex; align-items: center; gap: 6px; }
+.tool-log-head code { color: var(--accent, #7ea0ff); }
+.tool-log-args, .tool-log-result {
+  background: #0e0e13; color: #cdd4df; padding: 6px 8px; border-radius: 6px;
+  white-space: pre-wrap; word-break: break-word; margin: 4px 0 0; max-height: 180px; overflow: auto;
+}
+
+/* mic button in the chat footer */
+.audio-input { display: flex; align-items: center; gap: 6px; }
+.mic-btn {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border, #2a2a33);
+  background: var(--panel-2, #20202a); color: var(--text, #e7e7ee); cursor: pointer; font-size: 16px;
+}
+.mic-btn.recording { background: #e0566b; color: #fff; border-color: #e0566b; }
+.mic-btn.transcribing { opacity: .6; }
+.mic-hint { font-size: 12px; color: #e0566b; }
+.mic-error { font-size: 12px; color: #e0566b; }
